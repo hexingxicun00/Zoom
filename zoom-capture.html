@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ズームキャプチャ教材</title>
+<style>
+  :root{
+    --ink:#1c1f26;
+    --panel:#242833;
+    --panel-border:#383d4a;
+    --paper:#15171c;
+    --text-light:#e8e6df;
+    --text-dim:#9aa0ad;
+    --accent:#f2c94c;
+    --accent-ink:#1c1f26;
+    --danger:#e2574c;
+    --good:#4fb3a9;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:"Hiragino Sans","Noto Sans JP",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--ink);color:var(--text-light);-webkit-tap-highlight-color:transparent;}
+  button{font-family:inherit;cursor:pointer;}
+  #app{display:flex;flex-direction:column;height:100%;}
+
+  #toolbar{
+    display:flex;align-items:center;gap:8px;
+    background:var(--panel);border-bottom:1px solid var(--panel-border);
+    padding:8px 14px;flex:0 0 auto;flex-wrap:wrap;
+  }
+  .brand{font-weight:800;letter-spacing:.08em;font-size:14px;color:var(--text-dim);margin-right:6px;white-space:nowrap;}
+  .brand span{color:var(--accent);}
+  .divider{width:1px;height:22px;background:var(--panel-border);margin:0 2px;}
+  #toolbar button{
+    background:#2c313e;color:var(--text-light);border:1px solid var(--panel-border);
+    border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;
+  }
+  #toolbar button:hover{background:#343a49;}
+  #toolbar button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  #toolbar button.good{background:var(--good);color:#0e2624;border-color:var(--good);}
+
+  #main{flex:1 1 auto;display:flex;min-height:0;}
+  #panel{
+    width:230px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--panel-border);
+    padding:14px 12px;overflow-y:auto;
+  }
+  #panel h2{font-size:12px;letter-spacing:.06em;color:var(--text-dim);margin:0 0 10px;text-transform:uppercase;display:flex;justify-content:space-between;}
+  #stepList{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:7px;}
+  #stepList li{
+    display:flex;align-items:center;gap:7px;background:#2c313e;border:1px solid var(--panel-border);
+    border-radius:8px;padding:7px 8px;cursor:pointer;font-size:12.5px;
+  }
+  #stepList li.activeStep{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;}
+  .bracket{
+    flex:0 0 auto;width:24px;height:22px;position:relative;color:var(--accent);font-weight:800;font-size:10.5px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .bracket::before,.bracket::after{content:"";position:absolute;width:6px;height:6px;border:2px solid var(--accent);}
+  .bracket::before{top:0;left:0;border-right:none;border-bottom:none;}
+  .bracket::after{bottom:0;right:0;border-left:none;border-top:none;}
+  .stepIcon{flex:0 0 auto;font-size:14px;width:18px;text-align:center;}
+  .stepLabel{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stepDel{flex:0 0 auto;background:none;border:none;color:var(--text-dim);font-size:14px;padding:2px 4px;border-radius:5px;}
+  .stepDel:hover{color:var(--danger);background:#3a2424;}
+  .hint{font-size:11.5px;line-height:1.65;color:var(--text-dim);}
+
+  #viewport{position:relative;flex:1 1 auto;overflow:hidden;background:var(--paper);touch-action:none;cursor:grab;}
+  #viewport.panning{cursor:grabbing;}
+  #world{position:absolute;top:0;left:0;transform-origin:0 0;width:1px;height:1px;}
+  #world.animated{transition:transform 1.8s cubic-bezier(.65,0,.35,1);}
+  #bgImage{position:absolute;top:0;left:0;pointer-events:none;display:block;}
+  #viewport #bgImage{outline:2px dashed rgba(242,201,76,.45);outline-offset:0;}
+
+  #emptyState{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;z-index:5;
+  }
+  #emptyState.hidden{display:none;}
+  #emptyState .dropBox{
+    border:2px dashed var(--panel-border);border-radius:16px;padding:48px 56px;text-align:center;
+  }
+  #emptyState .dropBox.dragover{border-color:var(--accent);background:rgba(242,201,76,.06);}
+  #emptyState p{color:var(--text-dim);font-size:13px;margin:10px 0 18px;}
+  #emptyState button{background:var(--accent);color:var(--accent-ink);border:none;border-radius:9px;
+    padding:12px 22px;font-size:14px;font-weight:700;}
+
+  #zoomCtrl{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:6px;
+    background:rgba(28,31,38,.88);border:1px solid var(--panel-border);border-radius:10px;padding:6px 8px;z-index:50;}
+  #zoomCtrl button{width:30px;height:30px;border-radius:7px;border:1px solid var(--panel-border);background:#2c313e;color:var(--text-light);font-size:16px;}
+  #zoomLabel{font-size:12px;color:var(--text-dim);min-width:42px;text-align:center;}
+
+  #captureBtn{
+    position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
+    background:var(--accent);color:var(--accent-ink);border:none;border-radius:30px;
+    padding:14px 28px;font-size:15px;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:50;
+    display:flex;align-items:center;gap:8px;
+  }
+  #captureBtn:active{transform:translateX(-50%) scale(.97);}
+
+  /* ===== Stickers ===== */
+  #stickerWrap{position:relative;display:inline-block;}
+  #stickerPalette{
+    position:absolute;top:38px;left:0;display:none;flex-wrap:wrap;gap:4px;width:168px;
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;padding:8px;z-index:80;
+    box-shadow:0 10px 24px rgba(0,0,0,.4);
+  }
+  #stickerPalette.show{display:flex;}
+  #stickerPalette button{width:34px;height:34px;font-size:18px;border-radius:8px;border:1px solid var(--panel-border);background:#2c313e;}
+  #stickerPalette button:hover{background:#343a49;}
+
+  .sticker{position:absolute;display:flex;align-items:center;justify-content:center;
+    cursor:grab;user-select:none;opacity:1;}
+  .sticker.dragging{cursor:grabbing;}
+  .sticker .emojiFace{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+    font-size:1em;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));}
+  .sticker .stHandle{position:absolute;right:-7px;bottom:-7px;width:16px;height:16px;border-radius:50%;
+    background:var(--accent);border:2px solid var(--ink);cursor:nwse-resize;display:none;}
+  .sticker.selected{outline:2px dashed var(--accent);}
+  .sticker.selected .stHandle{display:block;}
+  .stToolbar{position:absolute;top:-34px;left:50%;transform:translateX(-50%);display:none;
+    align-items:center;gap:3px;background:var(--panel);border:1px solid var(--panel-border);
+    border-radius:8px;padding:3px;white-space:nowrap;z-index:6;}
+  .sticker.selected .stToolbar{display:flex;}
+  .stToolbar button{width:24px;height:24px;border-radius:6px;border:none;background:#2c313e;color:var(--danger);font-size:12px;}
+
+  /* 発表モードではフェードイン演出に切り替える */
+  #presentOverlay.show .sticker{opacity:0;pointer-events:none;transition:opacity 1s ease;}
+  #presentOverlay.show .sticker.visible{opacity:1;}
+  #presentOverlay.show .sticker .stToolbar, #presentOverlay.show .sticker .stHandle{display:none;}
+
+  #presentOverlay{position:fixed;inset:0;background:#000;z-index:1000;display:none;}
+  #presentOverlay.show{display:block;}
+  #presViewport{position:absolute;inset:0;overflow:hidden;}
+  #presExit{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;
+    border:none;background:rgba(255,255,255,.18);color:#fff;font-size:18px;z-index:20;}
+  .presNav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;
+    border:none;background:rgba(255,255,255,.14);color:#fff;font-size:22px;z-index:20;}
+  .presNav.left{left:14px;}
+  .presNav.right{right:14px;}
+  #presCounter{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
+    background:rgba(255,255,255,.14);color:#fff;font-size:13px;padding:6px 14px;border-radius:20px;z-index:20;letter-spacing:.04em;}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--panel-border);color:var(--text-light);
+    padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;
+    transition:opacity .25s, transform .25s;z-index:2000;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:680px){
+    #panel{width:160px;}
+    .brand{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="toolbar">
+    <div class="brand">ZOOM<span>キャプチャ</span></div>
+    <button id="btnChangeImage">画像を読み込む／変更</button>
+    <input type="file" id="fileImage" accept="image/*" hidden>
+    <div class="divider"></div>
+    <button id="btnSave" class="good">保存</button>
+    <button id="btnLoad">開く</button>
+    <input type="file" id="fileLoad" accept="application/json" hidden>
+    <div class="divider"></div>
+    <div id="stickerWrap">
+      <button id="btnSticker">🎨 イラスト追加</button>
+      <div id="stickerPalette"></div>
+    </div>
+    <div class="divider"></div>
+    <button id="btnPresent" class="primary">▶ 発表開始</button>
+  </header>
+
+  <div id="main">
+    <aside id="panel">
+      <h2>スライド順 <span id="stepCount">0</span></h2>
+      <ol id="stepList"></ol>
+      <p class="hint">これがそのまま発表時に進む順番です。📸でズーム箇所を、🎨でイラストをこの順番の中に追加します。イラストはカメラを動かさず、その場で「1コマ」としてふわっと表示されます。ドラッグで自由に並べ替えできます。</p>
+    </aside>
+
+    <div id="viewport">
+      <div id="world"><img id="bgImage" alt=""></div>
+      <div id="emptyState">
+        <div class="dropBox" id="dropBox">
+          <button id="btnLoadInitial">📁 画像を読み込む</button>
+          <p>生成AIで作った画像など、1枚をここに読み込みます<br>（ドラッグ＆ドロップも可）</p>
+        </div>
+      </div>
+      <div id="zoomCtrl">
+        <button id="zoomOut">－</button>
+        <span id="zoomLabel">100%</span>
+        <button id="zoomIn">＋</button>
+        <button id="zoomReset" title="全体表示">⊙</button>
+      </div>
+      <button id="captureBtn">📸 ここをキャプチャ</button>
+    </div>
+  </div>
+</div>
+
+<div id="presentOverlay">
+  <button id="presExit">✕</button>
+  <div id="presViewport"></div>
+  <button id="presPrevBtn" class="presNav left">‹</button>
+  <button id="presNextBtn" class="presNav right">›</button>
+  <div id="presCounter">1 / 1</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // steps: 統合された「スライド順」配列。
+  //   {id, type:'frame',   x,y,scale, label}  ズーム箇所
+  //   {id, type:'sticker', x,y,size,emoji, label}  イラスト（独立した1コマ）
+  let steps = [];
+  let stepIdSeq = 1;
+  let activeStepIdx = -1;
+  let selectedStickerId = null;
+
+  let imgDataUrl = null, imgW = 0, imgH = 0;
+  let editView = { panX:0, panY:0, scale:1 };
+  let presView = { panX:0, panY:0, scale:1 };
+  let presenting = false;
+  let presIdx = 0;
+  let currentCameraStep = null;
+
+  const viewport = document.getElementById('viewport');
+  const world = document.getElementById('world');
+  const bgImage = document.getElementById('bgImage');
+  const presViewport = document.getElementById('presViewport');
+  const presOverlay = document.getElementById('presentOverlay');
+  const stepListEl = document.getElementById('stepList');
+  const stepCountEl = document.getElementById('stepCount');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const presCounter = document.getElementById('presCounter');
+  const emptyState = document.getElementById('emptyState');
+  const captureBtn = document.getElementById('captureBtn');
+
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>t.classList.remove('show'), 1800);
+  }
+
+  // ---------- transform ----------
+  function applyTransform(animate){
+    const v = presenting ? presView : editView;
+    world.classList.toggle('animated', !!animate);
+    world.style.transform = `translate(${v.panX}px,${v.panY}px) scale(${v.scale})`;
+    if(!presenting){ zoomLabel.textContent = Math.round(v.scale*100)+'%'; }
+  }
+
+  function computeFitTransform(){
+    const r = viewport.getBoundingClientRect();
+    const scale = Math.min(r.width/imgW, r.height/imgH) * 0.78;
+    return { scale, panX:(r.width - imgW*scale)/2, panY:(r.height - imgH*scale)/2 };
+  }
+  function fitImageToView(){
+    if(!imgW) return;
+    editView = computeFitTransform();
+    applyTransform(false);
+  }
+
+  function setImage(dataUrl){
+    const img = new Image();
+    img.onload = ()=>{
+      imgDataUrl = dataUrl; imgW = img.naturalWidth; imgH = img.naturalHeight;
+      bgImage.src = dataUrl;
+      bgImage.style.width = imgW+'px';
+      bgImage.style.height = imgH+'px';
+      emptyState.classList.add('hidden');
+      fitImageToView();
+      autosave();
+    };
+    img.onerror = ()=> alert('画像を読み込めませんでした');
+    img.src = dataUrl;
+  }
+
+  // ---------- load image (file / drop) ----------
+  const fileImage = document.getElementById('fileImage');
+  function openFilePicker(){ fileImage.click(); }
+  document.getElementById('btnChangeImage').onclick = openFilePicker;
+  document.getElementById('btnLoadInitial').onclick = openFilePicker;
+  fileImage.onchange = (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    if(steps.length && !confirm('画像を変更すると、現在のスライド順（ズーム・イラスト）はリセットされます。続けますか？')){
+      fileImage.value=''; return;
+    }
+    clearAllSteps();
+    const reader = new FileReader();
+    reader.onload = ()=> setImage(reader.result);
+    reader.readAsDataURL(f);
+    fileImage.value = '';
+  };
+  const dropBox = document.getElementById('dropBox');
+  ['dragover','dragenter'].forEach(ev=>dropBox.addEventListener(ev, e=>{ e.preventDefault(); dropBox.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev=>dropBox.addEventListener(ev, e=>{ e.preventDefault(); dropBox.classList.remove('dragover'); }));
+  dropBox.addEventListener('drop', (e)=>{
+    const f = e.dataTransfer.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=> setImage(reader.result);
+    reader.readAsDataURL(f);
+  });
+
+  // ---------- pan / zoom (mouse + touch) ----------
+  const activePointers = new Map();
+  let pinch = null;
+
+  viewport.addEventListener('pointerdown', (e)=>{
+    if(presenting || !imgW) return;
+    if(e.target.closest('#zoomCtrl') || e.target.closest('#captureBtn') || e.target.closest('.sticker')) return;
+    deselectStickers();
+    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    viewport.setPointerCapture(e.pointerId);
+    viewport.classList.add('panning');
+    if(activePointers.size === 2){
+      const pts = [...activePointers.values()];
+      pinch = {
+        dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
+        mid: {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2},
+        scale: editView.scale, panX: editView.panX, panY: editView.panY
+      };
+    }
+  });
+  viewport.addEventListener('pointermove', (e)=>{
+    if(presenting || !activePointers.has(e.pointerId)) return;
+    const prev = activePointers.get(e.pointerId);
+    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+    if(activePointers.size === 2 && pinch){
+      const pts = [...activePointers.values()];
+      const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+      const mid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+      const r = viewport.getBoundingClientRect();
+      const newScale = Math.min(8, Math.max(0.05, pinch.scale * (dist/pinch.dist)));
+      const worldUnderMid = { x:(pinch.mid.x - r.left - pinch.panX)/pinch.scale, y:(pinch.mid.y - r.top - pinch.panY)/pinch.scale };
+      editView.scale = newScale;
+      editView.panX = (mid.x - r.left) - worldUnderMid.x*newScale;
+      editView.panY = (mid.y - r.top) - worldUnderMid.y*newScale;
+      applyTransform(false);
+    } else if(activePointers.size === 1 && prev){
+      editView.panX += e.clientX - prev.x;
+      editView.panY += e.clientY - prev.y;
+      applyTransform(false);
+    }
+  });
+  function endPointer(e){
+    activePointers.delete(e.pointerId);
+    if(activePointers.size < 2) pinch = null;
+    if(activePointers.size === 0) viewport.classList.remove('panning');
+  }
+  viewport.addEventListener('pointerup', endPointer);
+  viewport.addEventListener('pointercancel', endPointer);
+  viewport.addEventListener('contextmenu', (e)=> e.preventDefault());
+
+  viewport.addEventListener('wheel', (e)=>{
+    if(presenting || !imgW) return;
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    const newScale = Math.min(8, Math.max(0.05, editView.scale * factor));
+    const worldUnder = { x:(e.clientX - r.left - editView.panX)/editView.scale, y:(e.clientY - r.top - editView.panY)/editView.scale };
+    editView.scale = newScale;
+    editView.panX = (e.clientX - r.left) - worldUnder.x*newScale;
+    editView.panY = (e.clientY - r.top) - worldUnder.y*newScale;
+    applyTransform(false);
+  }, {passive:false});
+
+  document.getElementById('zoomIn').onclick = ()=> zoomBy(1.25);
+  document.getElementById('zoomOut').onclick = ()=> zoomBy(0.8);
+  document.getElementById('zoomReset').onclick = ()=>{ fitImageToView(); };
+  function zoomBy(f){
+    const r = viewport.getBoundingClientRect();
+    const cx = r.width/2, cy = r.height/2;
+    const newScale = Math.min(8, Math.max(0.05, editView.scale*f));
+    const worldUnder = { x:(cx-editView.panX)/editView.scale, y:(cy-editView.panY)/editView.scale };
+    editView.scale = newScale;
+    editView.panX = cx - worldUnder.x*newScale;
+    editView.panY = cy - worldUnder.y*newScale;
+    applyTransform(true);
+  }
+
+  // ---------- unified step list (frame + sticker) ----------
+  function cameraStepForIndex(idx){
+    for(let i=idx; i>=0; i--){ if(steps[i].type === 'frame') return steps[i]; }
+    return null;
+  }
+  function jumpToCamera(camStep){
+    editView = camStep ? { panX:camStep.x, panY:camStep.y, scale:camStep.scale } : computeFitTransform();
+    applyTransform(true);
+  }
+  function insertStep(step){
+    const at = activeStepIdx > -1 ? activeStepIdx+1 : steps.length;
+    steps.splice(at, 0, step);
+    activeStepIdx = at;
+    renderStepList();
+    autosave();
+    return at;
+  }
+  function deleteStep(id){
+    const idx = steps.findIndex(s=>s.id===id);
+    if(idx<0) return;
+    const s = steps[idx];
+    if(s.type === 'sticker' && s._box) s._box.remove();
+    steps.splice(idx,1);
+    if(activeStepIdx >= steps.length) activeStepIdx = steps.length-1;
+    renderStepList();
+    autosave();
+  }
+  function clearAllSteps(){
+    steps.forEach(s=>{ if(s.type==='sticker' && s._box) s._box.remove(); });
+    steps = [];
+    activeStepIdx = -1;
+    selectedStickerId = null;
+    renderStepList();
+  }
+
+  function renderStepList(){
+    stepListEl.innerHTML = '';
+    stepCountEl.textContent = steps.length;
+    steps.forEach((s, i)=>{
+      const li = document.createElement('li');
+      li.draggable = true;
+      if(i === activeStepIdx) li.classList.add('activeStep');
+
+      const bracket = document.createElement('span');
+      bracket.className = 'bracket';
+      bracket.textContent = i+1;
+
+      const icon = document.createElement('span');
+      icon.className = 'stepIcon';
+      icon.textContent = s.type === 'frame' ? '🔍' : s.emoji;
+
+      const label = document.createElement('span');
+      label.className = 'stepLabel';
+      label.textContent = s.label || (s.type === 'frame' ? 'ズーム' : 'イラスト');
+
+      const del = document.createElement('button');
+      del.className = 'stepDel';
+      del.textContent = '×';
+      del.onclick = (e)=>{ e.stopPropagation(); deleteStep(s.id); };
+
+      li.appendChild(bracket); li.appendChild(icon); li.appendChild(label); li.appendChild(del);
+
+      li.onclick = ()=>{
+        activeStepIdx = i;
+        renderStepList();
+        if(s.type === 'frame'){
+          jumpToCamera(s);
+        } else {
+          selectSticker(s.id);
+          jumpToCamera(cameraStepForIndex(i));
+        }
+      };
+      li.ondblclick = ()=>{
+        const nl = prompt('名前を変更', s.label || '');
+        if(nl !== null){ s.label = nl; renderStepList(); autosave(); }
+      };
+
+      li.addEventListener('dragstart', (e)=> e.dataTransfer.setData('text/plain', i));
+      li.addEventListener('dragover', (e)=> e.preventDefault());
+      li.addEventListener('drop', (e)=>{
+        e.preventDefault();
+        const from = Number(e.dataTransfer.getData('text/plain'));
+        const [moved] = steps.splice(from,1);
+        steps.splice(i,0,moved);
+        activeStepIdx = i;
+        renderStepList(); autosave();
+      });
+
+      stepListEl.appendChild(li);
+    });
+  }
+
+  captureBtn.onclick = ()=>{
+    if(!imgW){ toast('先に画像を読み込んでください'); return; }
+    const frameNo = steps.filter(s=>s.type==='frame').length + 1;
+    insertStep({ id:stepIdSeq++, type:'frame', x:editView.panX, y:editView.panY, scale:editView.scale, label:`ズーム${frameNo}` });
+    toast('キャプチャしました');
+  };
+
+  // ---------- stickers (イラスト：独立した1コマとして挿入) ----------
+  const STICKER_EMOJI = ['⭐','✅','👍','❗','💡','🔍','🎉','👀','📌','🍀','🔥','❤️'];
+  const stickerPalette = document.getElementById('stickerPalette');
+  const btnSticker = document.getElementById('btnSticker');
+  STICKER_EMOJI.forEach(em=>{
+    const b = document.createElement('button');
+    b.textContent = em;
+    b.onclick = (e)=>{ e.stopPropagation(); addStickerStep(em); stickerPalette.classList.remove('show'); };
+    stickerPalette.appendChild(b);
+  });
+  btnSticker.onclick = (e)=>{
+    if(!imgW){ toast('先に画像を読み込んでください'); return; }
+    e.stopPropagation();
+    stickerPalette.classList.toggle('show');
+  };
+  document.addEventListener('pointerdown', (e)=>{
+    if(!e.target.closest('#stickerWrap')) stickerPalette.classList.remove('show');
+  });
+
+  function addStickerStep(emoji){
+    const r = viewport.getBoundingClientRect();
+    const center = { x:(r.width/2 - editView.panX)/editView.scale, y:(r.height/2 - editView.panY)/editView.scale };
+    const s = { id:stepIdSeq++, type:'sticker', x:center.x-30, y:center.y-30, size:60, emoji, label:'' };
+    const at = insertStep(s);
+    renderStickerBox(s);
+    selectSticker(s.id);
+    toast('イラストを追加しました（順番リストの位置で表示タイミングが決まります）');
+  }
+
+  function renderStickerBox(d){
+    const box = document.createElement('div');
+    box.className = 'sticker';
+    box.style.left = d.x+'px';
+    box.style.top = d.y+'px';
+    box.style.width = d.size+'px';
+    box.style.height = d.size+'px';
+    box.style.fontSize = d.size+'px';
+
+    const face = document.createElement('div');
+    face.className = 'emojiFace';
+    face.textContent = d.emoji;
+    box.appendChild(face);
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'stToolbar';
+    const del = document.createElement('button');
+    del.textContent = '🗑';
+    del.onclick = (e)=>{ e.stopPropagation(); deleteStep(d.id); };
+    toolbar.appendChild(del);
+    box.appendChild(toolbar);
+
+    const handle = document.createElement('div');
+    handle.className = 'stHandle';
+    box.appendChild(handle);
+
+    world.appendChild(box);
+    d._box = box;
+
+    box.addEventListener('pointerdown', (e)=>{
+      if(presenting || e.target === handle || e.target.closest('.stToolbar')) return;
+      e.stopPropagation();
+      selectSticker(d.id);
+      const startWorld = { x:(e.clientX - viewport.getBoundingClientRect().left - editView.panX)/editView.scale,
+                            y:(e.clientY - viewport.getBoundingClientRect().top - editView.panY)/editView.scale };
+      const startX = d.x, startY = d.y;
+      box.classList.add('dragging');
+      box.setPointerCapture(e.pointerId);
+      let moved = false;
+      function move(ev){
+        const r = viewport.getBoundingClientRect();
+        const w = { x:(ev.clientX - r.left - editView.panX)/editView.scale, y:(ev.clientY - r.top - editView.panY)/editView.scale };
+        d.x = startX + (w.x - startWorld.x);
+        d.y = startY + (w.y - startWorld.y);
+        box.style.left = d.x+'px';
+        box.style.top = d.y+'px';
+        moved = true;
+      }
+      function up(){
+        box.removeEventListener('pointermove', move);
+        box.removeEventListener('pointerup', up);
+        box.classList.remove('dragging');
+        if(moved) autosave();
+      }
+      box.addEventListener('pointermove', move);
+      box.addEventListener('pointerup', up);
+    });
+
+    handle.addEventListener('pointerdown', (e)=>{
+      if(presenting) return;
+      e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      const startSize = d.size;
+      const startPx = e.clientX;
+      function move(ev){
+        const ns = Math.max(24, startSize + (ev.clientX - startPx)/editView.scale);
+        d.size = ns;
+        box.style.width = ns+'px'; box.style.height = ns+'px'; box.style.fontSize = ns+'px';
+      }
+      function up(){ handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); autosave(); }
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+    });
+  }
+  function selectSticker(id){
+    selectedStickerId = id;
+    document.querySelectorAll('.sticker').forEach(b=> b.classList.remove('selected'));
+    const d = steps.find(s=>s.id===id);
+    if(d && d._box) d._box.classList.add('selected');
+  }
+  function deselectStickers(){
+    selectedStickerId = null;
+    document.querySelectorAll('.sticker.selected').forEach(b=>b.classList.remove('selected'));
+  }
+
+  // ---------- save / load ----------
+  function serialize(){
+    return JSON.stringify({
+      version:3, image:imgDataUrl, imgW, imgH,
+      steps: steps.map(s=> s.type==='frame'
+        ? {id:s.id, type:'frame', x:s.x, y:s.y, scale:s.scale, label:s.label}
+        : {id:s.id, type:'sticker', x:s.x, y:s.y, size:s.size, emoji:s.emoji, label:s.label})
+    });
+  }
+  function migrateOldFormat(data){
+    // version1/2: frames[] + stickers[](frameId参照) だった旧形式を統合listへ変換
+    const frames = (data.frames||[]).map(f=> ({ id:f.id, type:'frame', x:f.x, y:f.y, scale:f.scale, label:f.label }));
+    const oldStickers = data.stickers || [];
+    const result = [];
+    const used = new Set();
+    frames.forEach(f=>{
+      result.push(f);
+      oldStickers.forEach(s=>{
+        if(s.frameId === f.id && !used.has(s.id)){
+          used.add(s.id);
+          result.push({ id:s.id, type:'sticker', x:s.x, y:s.y, size:s.size, emoji:s.emoji, label:'' });
+        }
+      });
+    });
+    oldStickers.forEach(s=>{
+      if(!used.has(s.id)) result.unshift({ id:s.id, type:'sticker', x:s.x, y:s.y, size:s.size, emoji:s.emoji, label:'' });
+    });
+    return result;
+  }
+  function loadSteps(data){
+    const loaded = data.steps ? data.steps : migrateOldFormat(data);
+    clearAllSteps();
+    steps = loaded;
+    stepIdSeq = 1;
+    steps.forEach(s=>{ stepIdSeq = Math.max(stepIdSeq, s.id+1); if(s.type==='sticker') renderStickerBox(s); });
+    activeStepIdx = -1;
+    renderStepList();
+  }
+  function autosave(){
+    clearTimeout(autosave._t);
+    autosave._t = setTimeout(()=>{
+      try{ localStorage.setItem('zoomCapture_autosave', serialize()); }catch(e){}
+    }, 700);
+  }
+  let lastFileName = 'ズーム教材';
+  document.getElementById('btnSave').onclick = ()=>{
+    if(!imgW){ toast('画像がありません'); return; }
+    const name = prompt('保存する名前を入力してください', lastFileName);
+    if(name === null) return; // キャンセル
+    lastFileName = name.trim() || 'ズーム教材';
+    const blob = new Blob([serialize()], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = lastFileName.replace(/[\\/:*?"<>|]/g,'') + '.json';
+    a.click();
+    toast(`「${lastFileName}」として保存しました`);
+  };
+  const fileLoad = document.getElementById('fileLoad');
+  document.getElementById('btnLoad').onclick = ()=> fileLoad.click();
+  fileLoad.onchange = (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        loadSteps(data);
+        setImage(data.image);
+        toast('読み込みました');
+      }catch(err){ alert('ファイルを読み込めませんでした'); }
+    };
+    reader.readAsText(f);
+    fileLoad.value = '';
+  };
+
+  // ---------- keyboard ----------
+  window.addEventListener('keydown', (e)=>{
+    if(presenting){
+      if(e.key === 'ArrowRight' || e.key === ' '){ e.preventDefault(); presNext(); }
+      else if(e.key === 'ArrowLeft'){ e.preventDefault(); presPrev(); }
+      else if(e.key === 'Escape') exitPresent();
+      return;
+    }
+    if(e.key === 'Enter' && imgW){ captureBtn.click(); }
+    if((e.key === 'Delete' || e.key === 'Backspace') && selectedStickerId){ e.preventDefault(); deleteStep(selectedStickerId); selectedStickerId=null; }
+    if(e.key === 'Escape') deselectStickers();
+  });
+
+  // ---------- presentation ----------
+  const btnPresent = document.getElementById('btnPresent');
+  const presExit = document.getElementById('presExit');
+  const presPrevBtn = document.getElementById('presPrevBtn');
+  const presNextBtn = document.getElementById('presNextBtn');
+
+  function requestFS(el){
+    try{
+      if(el.requestFullscreen) return el.requestFullscreen();
+      if(el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+    }catch(e){}
+    return Promise.resolve();
+  }
+  function exitFS(){
+    try{
+      if(document.fullscreenElement && document.exitFullscreen) return document.exitFullscreen();
+      if(document.webkitFullscreenElement && document.webkitExitFullscreen) return document.webkitExitFullscreen();
+    }catch(e){}
+    return Promise.resolve();
+  }
+  ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>{
+    document.addEventListener(ev, ()=>{
+      const inFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if(!inFS && presenting) exitPresent();
+    });
+  });
+
+  function updateStepVisibility(){
+    steps.forEach((s,i)=>{
+      if(s.type === 'sticker' && s._box){ s._box.classList.toggle('visible', presIdx >= i); }
+    });
+  }
+  function goToStep(idx){
+    const camStep = cameraStepForIndex(idx);
+    const animate = camStep !== currentCameraStep;
+    currentCameraStep = camStep;
+    presView = camStep ? { panX:camStep.x, panY:camStep.y, scale:camStep.scale } : computeFitTransform();
+    applyTransform(animate);
+    presCounter.textContent = `${idx+1} / ${steps.length}`;
+    updateStepVisibility();
+  }
+
+  btnPresent.onclick = ()=>{
+    if(steps.length === 0){ alert('先に「キャプチャ」か「イラスト追加」で1つ以上スライドを作ってください。'); return; }
+    presenting = true;
+    presIdx = 0;
+    currentCameraStep = undefined; // 初回は必ずカメラを当てるため前回値と一致させない
+    presOverlay.classList.add('show');
+    presViewport.appendChild(world);
+    goToStep(0);
+    requestFS(presOverlay);
+  };
+  function exitPresent(){
+    presenting = false;
+    presOverlay.classList.remove('show');
+    viewport.appendChild(world);
+    applyTransform(false);
+    if(document.fullscreenElement || document.webkitFullscreenElement) exitFS();
+  }
+  function presNext(){ if(presIdx < steps.length-1){ presIdx++; goToStep(presIdx); } }
+  function presPrev(){ if(presIdx > 0){ presIdx--; goToStep(presIdx); } }
+
+  presExit.onclick = exitPresent;
+  presNextBtn.onclick = (e)=>{ e.stopPropagation(); presNext(); };
+  presPrevBtn.onclick = (e)=>{ e.stopPropagation(); presPrev(); };
+  presViewport.addEventListener('click', ()=> presNext());
+
+  let touchStartX = null;
+  presOverlay.addEventListener('touchstart', (e)=>{ touchStartX = e.changedTouches[0].clientX; });
+  presOverlay.addEventListener('touchend', (e)=>{
+    if(touchStartX===null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 50){ dx < 0 ? presNext() : presPrev(); }
+    touchStartX = null;
+  });
+
+  window.addEventListener('resize', ()=>{ if(imgW && steps.length===0) fitImageToView(); });
+
+  // ---------- init ----------
+  try{
+    const saved = localStorage.getItem('zoomCapture_autosave');
+    if(saved){
+      const data = JSON.parse(saved);
+      if(data.image && confirm('前回の続き（画像とスライド順）を読み込みますか？')){
+        loadSteps(data);
+        setImage(data.image);
+      }
+    }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
