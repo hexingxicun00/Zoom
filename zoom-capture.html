@@ -25,6 +25,7 @@
   .brandBar{padding:8px 12px;font-weight:800;letter-spacing:.08em;font-size:13px;color:var(--text-dim);
     background:var(--panel);border-bottom:1px solid var(--panel-border);flex:0 0 auto;}
   .brandBar span{color:var(--accent);}
+  .brandBar .ver{color:var(--text-dim);font-weight:600;font-size:11px;letter-spacing:0;}
 
   #main{flex:1 1 auto;display:flex;min-height:0;}
 
@@ -34,6 +35,12 @@
     padding:14px 12px;overflow-y:auto;
   }
   #panel h2{font-size:12px;letter-spacing:.06em;color:var(--text-dim);margin:0 0 10px;text-transform:uppercase;display:flex;justify-content:space-between;}
+  #textInputBox{width:100%;min-height:78px;background:#1c1f26;color:var(--text-light);border:1px solid var(--panel-border);
+    border-radius:8px;padding:8px;font-size:14px;line-height:1.4;resize:vertical;margin-bottom:8px;font-family:inherit;}
+  #textInputBox:focus{outline:none;box-shadow:0 0 0 2px var(--good);}
+  #textInputAddBtn{width:100%;background:var(--accent);color:var(--accent-ink);border:none;border-radius:8px;
+    padding:9px;font-size:13px;font-weight:700;}
+  #textInputAddBtn:hover{filter:brightness(1.05);}
 
   #pageTabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
   .pageTab{
@@ -130,6 +137,13 @@
     padding:8px;font-size:12.5px;font-weight:600;}
   #uploadImgBtn:hover{background:#343a49;}
 
+  .textBox{min-height:1.2em;padding:2px 4px;line-height:1.25;outline:none;white-space:pre-wrap;
+    word-break:break-word;cursor:default;}
+  .stToolbar{flex-wrap:wrap;max-width:230px;}
+  .stToolbar select{height:24px;font-size:10px;border-radius:6px;border:none;background:#2c313e;color:var(--text-light);max-width:58px;}
+  .stToolbar input[type=color]{width:24px;height:24px;padding:0;border:none;border-radius:6px;background:none;}
+  .stToolbar button.boldOn{background:var(--accent);color:var(--accent-ink);}
+
   /* ===== Stickers ===== */
   .sticker{position:absolute;display:flex;align-items:center;justify-content:center;
     cursor:grab;user-select:none;opacity:1;}
@@ -140,11 +154,11 @@
     background:var(--accent);border:2px solid var(--ink);cursor:nwse-resize;display:none;}
   .sticker.selected{outline:2px dashed var(--accent);}
   .sticker.selected .stHandle{display:block;}
-  .stToolbar{position:absolute;top:-34px;left:50%;transform:translateX(-50%);display:none;
-    align-items:center;gap:3px;background:var(--panel);border:1px solid var(--panel-border);
-    border-radius:8px;padding:3px;white-space:nowrap;z-index:6;}
+  .stToolbar{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);display:none;
+    align-items:center;justify-content:center;gap:3px;background:var(--panel);border:1px solid var(--panel-border);
+    border-radius:8px;padding:3px;z-index:6;}
   .sticker.selected .stToolbar{display:flex;}
-  .stToolbar button{width:24px;height:24px;border-radius:6px;border:none;background:#2c313e;color:var(--danger);font-size:12px;}
+  .stToolbar button{width:24px;height:24px;border-radius:6px;border:none;background:#2c313e;color:var(--danger);font-size:12px;flex:0 0 auto;}
 
   /* 発表モードではフェードイン演出に切り替える */
   #presentOverlay.show .sticker{opacity:0;pointer-events:none;transition:opacity 1s ease;}
@@ -177,14 +191,19 @@
 </head>
 <body>
 <div id="app">
-  <div class="brandBar">ZOOM<span>キャプチャ</span></div>
+  <div class="brandBar">ZOOM<span>キャプチャ</span> <span class="ver">v1.1</span></div>
 
   <div id="main">
     <aside id="panel">
       <h2>ページ <span id="pageCount">0</span></h2>
       <div id="pageTabs"></div>
 
-      <h2>スライド順 <span id="stepCount">0</span></h2>
+      <h2>テキスト入力</h2>
+      <textarea id="textInputBox" placeholder="ここに文字を入力してください"></textarea>
+      <button id="textInputAddBtn">＋ このテキストを追加</button>
+      <p class="hint" style="margin-top:6px;">キャンバス上の文字イラストをタップすると、ここにその文字が表示され、ここで直接編集できます。新しく作る時はここに入力してから「追加」を押してください。</p>
+
+      <h2 style="margin-top:18px;">スライド順 <span id="stepCount">0</span></h2>
       <ol id="stepList"></ol>
       <p class="hint">これがそのまま発表時に進む順番です（このページの分だけ）。📸でズーム箇所を、🎨でイラストをこの順番の中に追加します。イラストはカメラを動かさず、その場で「1コマ」としてふわっと表示されます。ページを増やすと、1ページ目のスライドが終わった後、自動的に次のページの画像に切り替わって続きを再生します。</p>
     </aside>
@@ -218,6 +237,8 @@
           <input type="file" id="fileStickerImage" accept="image/*" hidden>
         </div>
       </div>
+
+      <button id="btnText" class="railBtn"><span class="ico">✏️</span>テキスト</button>
 
       <button id="btnFullscreen" class="railBtn"><span class="ico">⛶</span>全画面</button>
 
@@ -606,13 +627,17 @@
         thumb.src = s.src;
         thumb.style.width = '100%'; thumb.style.height = '100%'; thumb.style.objectFit = 'contain';
         icon.appendChild(thumb);
+      } else if(s.kind === 'text'){
+        icon.textContent = 'Aa';
+        icon.style.fontWeight = '800';
+        icon.style.fontSize = '13px';
       } else {
         icon.textContent = s.emoji;
       }
 
       const label = document.createElement('span');
       label.className = 'stepLabel';
-      label.textContent = s.label || (s.type === 'frame' ? 'ズーム' : 'イラスト');
+      label.textContent = s.label || (s.type === 'frame' ? 'ズーム' : (s.kind === 'text' ? (s.text || 'テキスト') : 'イラスト'));
 
       const moveUp = document.createElement('button');
       moveUp.className = 'stepMove';
@@ -679,6 +704,33 @@
   const imageGrid = document.getElementById('imageGrid');
   const uploadImgBtn = document.getElementById('uploadImgBtn');
   const fileStickerImage = document.getElementById('fileStickerImage');
+  const btnText = document.getElementById('btnText');
+  const textInputBox = document.getElementById('textInputBox');
+  const textInputAddBtn = document.getElementById('textInputAddBtn');
+
+  btnText.onclick = (e)=>{
+    if(!imgW){ toast('先に画像を読み込んでください'); return; }
+    e.stopPropagation();
+    deselectStickers();
+    textInputBox.value = '';
+    textInputBox.focus();
+    toast('左の入力欄に文字を入れて「追加」を押してください');
+  };
+  textInputAddBtn.onclick = ()=>{
+    if(!imgW){ toast('先に画像を読み込んでください'); return; }
+    const txt = textInputBox.value.trim();
+    if(!txt){ toast('テキストを入力してください'); textInputBox.focus(); return; }
+    addTextStep(txt);
+  };
+  textInputBox.oninput = ()=>{
+    if(!selectedStickerId) return;
+    const d = steps.find(s=>s.id===selectedStickerId);
+    if(d && d.kind === 'text'){
+      d.text = textInputBox.value;
+      if(d._inner) d._inner.innerText = d.text;
+      autosave();
+    }
+  };
 
   STICKER_EMOJI.forEach(em=>{
     const b = document.createElement('button');
@@ -731,7 +783,7 @@ const PRESET_STICKERS = [
     e.stopPropagation();
     stickerPalette.classList.toggle('show');
   };
-  document.addEventListener('pointerdown', (e)=>{
+  document.addEventListener('click', (e)=>{
     if(!e.target.closest('#stickerWrap')) stickerPalette.classList.remove('show');
   });
 
@@ -746,6 +798,21 @@ const PRESET_STICKERS = [
     renderStickerBox(s);
     selectSticker(s.id);
     toast('イラストを追加しました（順番リストの位置で表示タイミングが決まります）');
+  }
+  function addTextStep(text){
+    const c = viewportCenterWorld();
+    const w = 220;
+    const s = {
+      id:stepIdSeq++, type:'sticker', kind:'text',
+      x:c.x-w/2, y:c.y-30, w, fontSize:32, color:'#ffffff', bold:true,
+      strokeColor:'#000000', strokeWidth:3, fontFamily:'sans', rotation:0,
+      text: text || 'テキスト', label:''
+    };
+    insertStep(s);
+    renderStickerBox(s);
+    selectSticker(s.id);
+    toast('テキストを追加しました（順番リストの位置で表示タイミングが決まります）');
+    return s;
   }
   function addImageStickerStep(src){
     const img = new Image();
@@ -762,15 +829,38 @@ const PRESET_STICKERS = [
     img.src = src;
   }
 
+  const FONT_STACKS = {
+    sans:  '"Hiragino Sans","Noto Sans JP",sans-serif',
+    serif: '"Hiragino Mincho ProN","Yu Mincho",serif',
+    round: '"Hiragino Maru Gothic ProN","Yu Gothic",sans-serif'
+  };
+  function applyTextStyle(d, inner){
+    if(!inner) return;
+    inner.style.fontSize = d.fontSize+'px';
+    inner.style.color = d.color || '#ffffff';
+    inner.style.fontWeight = d.bold ? '800' : '400';
+    inner.style.fontFamily = FONT_STACKS[d.fontFamily] || FONT_STACKS.sans;
+    const sw = d.strokeWidth != null ? d.strokeWidth : 3;
+    const sc = d.strokeColor || '#000000';
+    if(sw <= 0){
+      inner.style.webkitTextStroke = '0px transparent';
+      inner.style.textShadow = 'none';
+    } else {
+      inner.style.webkitTextStroke = `${sw}px ${sc}`;
+      inner.style.textShadow = `-1px -1px 0 ${sc}, 1px -1px 0 ${sc}, -1px 1px 0 ${sc}, 1px 1px 0 ${sc}, 0 0 ${sw+2}px ${sc}`;
+    }
+  }
   function renderStickerBox(d){
-    if(d.kind !== 'image' && !d.emoji){ d.kind = 'emoji'; }
+    if(d.kind !== 'image' && d.kind !== 'text' && !d.emoji){ d.kind = 'emoji'; }
     const box = document.createElement('div');
     box.className = 'sticker';
     box.style.left = d.x+'px';
     box.style.top = d.y+'px';
     box.style.width = d.w+'px';
-    box.style.height = d.h+'px';
+    if(d.kind !== 'text'){ box.style.height = d.h+'px'; }
+    if(d.rotation){ box.style.transform = `rotate(${d.rotation}deg)`; }
 
+    let inner = null;
     if(d.kind === 'image'){
       const img = document.createElement('img');
       img.src = d.src;
@@ -780,6 +870,13 @@ const PRESET_STICKERS = [
       img.style.objectFit = 'contain';
       img.style.pointerEvents = 'none';
       box.appendChild(img);
+    } else if(d.kind === 'text'){
+      inner = document.createElement('div');
+      inner.className = 'textBox';
+      inner.innerText = d.text || '';
+      applyTextStyle(d, inner);
+      box.appendChild(inner);
+      d._inner = inner;
     } else {
       box.style.fontSize = Math.min(d.w, d.h)+'px';
       const face = document.createElement('div');
@@ -790,6 +887,61 @@ const PRESET_STICKERS = [
 
     const toolbar = document.createElement('div');
     toolbar.className = 'stToolbar';
+    function restyleText(){
+      applyTextStyle(d, inner);
+    }
+    if(d.kind === 'text'){
+      const boldBtn = document.createElement('button');
+      boldBtn.textContent = 'B';
+      boldBtn.style.fontWeight = '800';
+      if(d.bold) boldBtn.classList.add('boldOn');
+      boldBtn.onclick = (e)=>{ e.stopPropagation(); d.bold = !d.bold; boldBtn.classList.toggle('boldOn', d.bold); restyleText(); autosave(); };
+      const minus = document.createElement('button'); minus.textContent = 'A-';
+      const plus = document.createElement('button'); plus.textContent = 'A+';
+      minus.onclick = (e)=>{ e.stopPropagation(); d.fontSize = Math.max(12, d.fontSize-4); restyleText(); autosave(); };
+      plus.onclick = (e)=>{ e.stopPropagation(); d.fontSize = Math.min(160, d.fontSize+4); restyleText(); autosave(); };
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.title = '文字の色';
+      colorInput.value = d.color || '#ffffff';
+      colorInput.onclick = (e)=> e.stopPropagation();
+      colorInput.oninput = ()=>{ d.color = colorInput.value; restyleText(); autosave(); };
+
+      const fontSelect = document.createElement('select');
+      fontSelect.title = 'フォント';
+      [['sans','ゴシック'],['serif','明朝'],['round','丸ゴシック']].forEach(([val,label])=>{
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = label;
+        if((d.fontFamily||'sans') === val) opt.selected = true;
+        fontSelect.appendChild(opt);
+      });
+      fontSelect.onclick = (e)=> e.stopPropagation();
+      fontSelect.onchange = ()=>{ d.fontFamily = fontSelect.value; restyleText(); autosave(); };
+
+      const strokeColorInput = document.createElement('input');
+      strokeColorInput.type = 'color';
+      strokeColorInput.title = '縁取りの色';
+      strokeColorInput.value = d.strokeColor || '#000000';
+      strokeColorInput.onclick = (e)=> e.stopPropagation();
+      strokeColorInput.oninput = ()=>{ d.strokeColor = strokeColorInput.value; restyleText(); autosave(); };
+
+      const strokeMinus = document.createElement('button'); strokeMinus.textContent = '縁-';
+      const strokePlus = document.createElement('button'); strokePlus.textContent = '縁+';
+      strokeMinus.title = '縁取りを薄く（0でなし）';
+      strokePlus.title = '縁取りを太く';
+      strokeMinus.onclick = (e)=>{ e.stopPropagation(); d.strokeWidth = Math.max(0, (d.strokeWidth!=null?d.strokeWidth:3)-1); restyleText(); autosave(); };
+      strokePlus.onclick = (e)=>{ e.stopPropagation(); d.strokeWidth = Math.min(10, (d.strokeWidth!=null?d.strokeWidth:3)+1); restyleText(); autosave(); };
+
+      const rotLeft = document.createElement('button'); rotLeft.textContent = '↺';
+      const rotRight = document.createElement('button'); rotRight.textContent = '↻';
+      rotLeft.onclick = (e)=>{ e.stopPropagation(); d.rotation = (d.rotation||0) - 15; box.style.transform = `rotate(${d.rotation}deg)`; autosave(); };
+      rotRight.onclick = (e)=>{ e.stopPropagation(); d.rotation = (d.rotation||0) + 15; box.style.transform = `rotate(${d.rotation}deg)`; autosave(); };
+      toolbar.appendChild(boldBtn); toolbar.appendChild(minus); toolbar.appendChild(plus);
+      toolbar.appendChild(fontSelect);
+      toolbar.appendChild(colorInput);
+      toolbar.appendChild(strokeColorInput); toolbar.appendChild(strokeMinus); toolbar.appendChild(strokePlus);
+      toolbar.appendChild(rotLeft); toolbar.appendChild(rotRight);
+    }
     const del = document.createElement('button');
     del.textContent = '🗑';
     del.onclick = (e)=>{ e.stopPropagation(); deleteStep(d.id); };
@@ -841,9 +993,17 @@ const PRESET_STICKERS = [
       function move(ev){
         const nw = Math.max(24, startW + (ev.clientX - startPx)/editView.scale);
         d.w = nw;
-        d.h = (d.kind === 'image') ? nw / d.aspect : nw;
-        box.style.width = d.w+'px'; box.style.height = d.h+'px';
-        if(d.kind !== 'image'){ box.style.fontSize = Math.min(d.w, d.h)+'px'; }
+        box.style.width = d.w+'px';
+        if(d.kind === 'image'){
+          d.h = nw / d.aspect;
+          box.style.height = d.h+'px';
+        } else if(d.kind === 'text'){
+          // 幅のみ変更、高さは内容に合わせて自動
+        } else {
+          d.h = nw;
+          box.style.height = d.h+'px';
+          box.style.fontSize = Math.min(d.w, d.h)+'px';
+        }
       }
       function up(){ handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); autosave(); }
       handle.addEventListener('pointermove', move);
@@ -855,19 +1015,24 @@ const PRESET_STICKERS = [
     document.querySelectorAll('.sticker').forEach(b=> b.classList.remove('selected'));
     const d = steps.find(s=>s.id===id);
     if(d && d._box) d._box.classList.add('selected');
+    if(d && d.kind === 'text'){
+      textInputBox.value = d.text || '';
+    } else {
+      textInputBox.value = '';
+    }
   }
   function deselectStickers(){
     selectedStickerId = null;
     document.querySelectorAll('.sticker.selected').forEach(b=>b.classList.remove('selected'));
+    if(textInputBox) textInputBox.value = '';
   }
 
   // ---------- save / load ----------
   function serializeStep(s){
-    return s.type === 'frame'
-      ? {id:s.id, type:'frame', x:s.x, y:s.y, scale:s.scale, label:s.label}
-      : (s.kind === 'image'
-          ? {id:s.id, type:'sticker', kind:'image', x:s.x, y:s.y, w:s.w, h:s.h, aspect:s.aspect, src:s.src, label:s.label}
-          : {id:s.id, type:'sticker', kind:'emoji', x:s.x, y:s.y, w:s.w, h:s.h, emoji:s.emoji, label:s.label});
+    if(s.type === 'frame') return {id:s.id, type:'frame', x:s.x, y:s.y, scale:s.scale, label:s.label};
+    if(s.kind === 'image') return {id:s.id, type:'sticker', kind:'image', x:s.x, y:s.y, w:s.w, h:s.h, aspect:s.aspect, src:s.src, label:s.label};
+    if(s.kind === 'text') return {id:s.id, type:'sticker', kind:'text', x:s.x, y:s.y, w:s.w, fontSize:s.fontSize, color:s.color, bold:s.bold, fontFamily:s.fontFamily, strokeColor:s.strokeColor, strokeWidth:s.strokeWidth, rotation:s.rotation, text:s.text, label:s.label};
+    return {id:s.id, type:'sticker', kind:'emoji', x:s.x, y:s.y, w:s.w, h:s.h, emoji:s.emoji, label:s.label};
   }
   function serialize(){
     return JSON.stringify({
@@ -877,9 +1042,25 @@ const PRESET_STICKERS = [
   }
   function normalizeStep(s){
     if(s.type === 'sticker'){
-      if(!s.kind){ s.kind = s.src ? 'image' : 'emoji'; }
-      if(s.w == null){ s.w = s.size || 60; }
-      if(s.h == null){ s.h = s.kind === 'image' ? (s.aspect ? s.w/s.aspect : s.size||60) : (s.size||60); }
+      if(!s.kind){ s.kind = s.src ? 'image' : (s.text != null ? 'text' : 'emoji'); }
+      if(s.kind === 'text'){
+        if(s.w == null) s.w = 220;
+        if(s.fontSize == null) s.fontSize = 32;
+        if(s.color == null) s.color = '#ffffff';
+        if(s.bold == null) s.bold = true;
+        if(s.fontFamily == null) s.fontFamily = 'sans';
+        if(s.strokeColor == null || s.strokeWidth == null){
+          // 旧形式（黒/白/なしの切替）からの変換
+          if(s.stroke === 'white'){ s.strokeColor = '#ffffff'; s.strokeWidth = 3; }
+          else if(s.stroke === 'none'){ s.strokeColor = s.strokeColor || '#000000'; s.strokeWidth = 0; }
+          else { s.strokeColor = s.strokeColor || '#000000'; s.strokeWidth = s.strokeWidth != null ? s.strokeWidth : 3; }
+        }
+        if(s.rotation == null) s.rotation = 0;
+        if(s.text == null) s.text = '';
+      } else {
+        if(s.w == null){ s.w = s.size || 60; }
+        if(s.h == null){ s.h = s.kind === 'image' ? (s.aspect ? s.w/s.aspect : s.size||60) : (s.size||60); }
+      }
     }
     return s;
   }
